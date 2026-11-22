@@ -436,33 +436,41 @@ function drawBirth(ctx, t, assets) {
 
 function drawKeys(ctx, t, assets) {
   const imgs = assets.imgs || {};
-  /* Title safe zone: y=0..270. Screenshots start below this and never cover the disclaimer. */
   ctx.textAlign = "center";
+  ctx.textBaseline = "alphabetic";
   ctx.fillStyle = "#0b2a5c";
   ctx.font = "800 46px 'Noto Sans CJK SC', sans-serif";
-  ctx.fillText("按键，高自由度自定义", W / 2, 150);
+  ctx.fillText("按键，高自由度自定义", W / 2, 132);
   ctx.fillStyle = "rgba(11,42,92,0.65)";
   ctx.font = "400 22px 'Noto Sans CJK SC', sans-serif";
-  ctx.fillText("自由拖动 · 缩放 · 横竖屏独立记忆 · 外观与绑定都可改", W / 2, 192);
+  ctx.fillText("自由拖动 · 缩放 · 横竖屏独立记忆 · 外观与绑定都可改", W / 2, 170);
+
+  /* Independent disclaimer bar ABOVE the screenshot box.
+   * Bar occupies y=188..228; screenshot/morph box starts at y=328 (100px gap). */
+  const barW = 620, barH = 40, barX = (W - barW) / 2, barY = 188;
+  fillRR(ctx, barX, barY, barW, barH, 12, "rgba(255,255,255,0.94)");
+  strokeRR(ctx, barX, barY, barW, barH, 12, "rgba(26,124,255,0.30)", 1);
   ctx.fillStyle = "#0a5ae0";
   ctx.font = "600 22px 'Noto Sans CJK SC', sans-serif";
-  ctx.fillText("游戏主题布局示例，尚未实测适配", W / 2, 230);
+  ctx.textBaseline = "middle";
+  ctx.fillText("游戏主题布局示例，尚未实测适配", W / 2, barY + barH / 2);
+  ctx.textBaseline = "alphabetic";
 
   /* stylized layout morphing, fades out as the real screenshot carousel comes in */
   const carouselIn = easeOutCubic(smooth((t - KEYS_SLOTS) / 0.45));
   ctx.save();
   ctx.globalAlpha = 1 - carouselIn;
-  fillRR(ctx, 90, 300, 900, 490, 48, "rgba(255,255,255,0.86)");
-  strokeRR(ctx, 90, 300, 900, 490, 48, "rgba(26,124,255,0.28)", 3);
+  fillRR(ctx, 90, 328, 900, 500, 48, "rgba(255,255,255,0.86)");
+  strokeRR(ctx, 90, 328, 900, 500, 48, "rgba(26,124,255,0.28)", 3);
   const keys = [];
   const keyN = 10;
   for (let i = 0; i < keyN; i++) {
     const seed = i * 1.7;
     const phase = smooth((t - KEYS_MORPH - i * 0.08) / 0.5);
     const x0 = 200 + (i % 5) * 150;
-    const y0 = 370 + Math.floor(i / 5) * 180;
+    const y0 = 400 + Math.floor(i / 5) * 180;
     const x1 = 180 + ((i * 3) % 5) * 155 + 30 * Math.sin(t * 0.8 + seed);
-    const y1 = 380 + Math.floor(((i * 3) % 10) / 5) * 210 + 16 * Math.cos(t * 0.6 + seed);
+    const y1 = 410 + Math.floor(((i * 3) % 10) / 5) * 210 + 16 * Math.cos(t * 0.6 + seed);
     const x = lerp(x0, x1, phase);
     const y = lerp(y0, y1, phase);
     const circle = i % 3 === 0 && phase > 0.4;
@@ -523,14 +531,14 @@ function drawKeys(ctx, t, assets) {
   }
   const cur = layouts[idx], nxtL = layouts[nxt];
 
-  const fx = 70, fy = 300, fw = 940, fh = 620;
+  const fx = 70, fy = 328, fw = 940, fh = 592;
   ctx.save();
   ctx.globalAlpha = appear;
   fillRR(ctx, fx, fy, fw, fh, 22, "rgba(255,255,255,0.94)");
   strokeRR(ctx, fx, fy, fw, fh, 22, "rgba(26,124,255,0.30)", 2);
 
   /* hero, contain to preserve aspect; dark mat only in unused letterbox */
-  const innerX = fx + 14, innerY = fy + 14, innerW = fw - 28, innerH = 368;
+  const innerX = fx + 14, innerY = fy + 14, innerW = fw - 28, innerH = 350;
   fillRR(ctx, innerX, innerY, innerW, innerH, 12, "#101820");
   ctx.save();
   rr(ctx, innerX, innerY, innerW, innerH, 12); ctx.clip();
