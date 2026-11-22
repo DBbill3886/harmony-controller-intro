@@ -380,7 +380,7 @@ function drawIdea(ctx, t, assets) {
 
 function drawBirth(ctx, t, assets) {
   const imgs = assets.imgs || {};
-  const bang = easeOutElastic(smooth((t - 53.2) / 0.7));
+  const bang = easeOutElastic(smooth((t - 47.62) / 0.7));
   ctx.textAlign = "center";
   ctx.save();
   ctx.translate(W / 2, 260);
@@ -416,7 +416,7 @@ function drawBirth(ctx, t, assets) {
   modes.forEach((m, i) => {
     const col = i % 3, row = Math.floor(i / 3);
     const x = 300 + col * 252, y = 800 + row * 118;
-    const a = easeOutBack(smooth((t - 62.4 - i * 0.10) / 0.4));
+    const a = easeOutBack(smooth((t - 54.80 - i * 0.10) / 0.4));
     ctx.save();
     ctx.globalAlpha = a;
     ctx.translate(x, y);
@@ -436,32 +436,33 @@ function drawBirth(ctx, t, assets) {
 
 function drawKeys(ctx, t, assets) {
   const imgs = assets.imgs || {};
+  /* Title safe zone: y=0..270. Screenshots start below this and never cover the disclaimer. */
   ctx.textAlign = "center";
   ctx.fillStyle = "#0b2a5c";
-  ctx.font = "800 48px 'Noto Sans CJK SC', sans-serif";
-  ctx.fillText("按键，高自由度自定义", W / 2, 170);
+  ctx.font = "800 46px 'Noto Sans CJK SC', sans-serif";
+  ctx.fillText("按键，高自由度自定义", W / 2, 150);
   ctx.fillStyle = "rgba(11,42,92,0.65)";
   ctx.font = "400 22px 'Noto Sans CJK SC', sans-serif";
-  ctx.fillText("自由拖动 · 缩放 · 横竖屏独立记忆 · 外观与绑定都可改", W / 2, 214);
-  ctx.fillText("游戏主题布局示例，尚未实测适配", W / 2, 250);
+  ctx.fillText("自由拖动 · 缩放 · 横竖屏独立记忆 · 外观与绑定都可改", W / 2, 192);
+  ctx.fillStyle = "#0a5ae0";
+  ctx.font = "600 22px 'Noto Sans CJK SC', sans-serif";
+  ctx.fillText("游戏主题布局示例，尚未实测适配", W / 2, 230);
 
-  /* stylized layout morphing on a tablet silhouette */
+  /* stylized layout morphing, fades out as the real screenshot carousel comes in */
   const carouselIn = easeOutCubic(smooth((t - KEYS_SLOTS) / 0.45));
   ctx.save();
   ctx.globalAlpha = 1 - carouselIn;
-  const cx = W / 2, cy = 560;
-  fillRR(ctx, 90, 270, 900, 490, 48, "rgba(255,255,255,0.86)");
-  strokeRR(ctx, 90, 270, 900, 490, 48, "rgba(26,124,255,0.28)", 3);
-  /* evolving keys */
+  fillRR(ctx, 90, 300, 900, 490, 48, "rgba(255,255,255,0.86)");
+  strokeRR(ctx, 90, 300, 900, 490, 48, "rgba(26,124,255,0.28)", 3);
   const keys = [];
   const keyN = 10;
   for (let i = 0; i < keyN; i++) {
     const seed = i * 1.7;
     const phase = smooth((t - KEYS_MORPH - i * 0.08) / 0.5);
     const x0 = 200 + (i % 5) * 150;
-    const y0 = 340 + Math.floor(i / 5) * 180;
+    const y0 = 370 + Math.floor(i / 5) * 180;
     const x1 = 180 + ((i * 3) % 5) * 155 + 30 * Math.sin(t * 0.8 + seed);
-    const y1 = 350 + Math.floor(((i * 3) % 10) / 5) * 210 + 16 * Math.cos(t * 0.6 + seed);
+    const y1 = 380 + Math.floor(((i * 3) % 10) / 5) * 210 + 16 * Math.cos(t * 0.6 + seed);
     const x = lerp(x0, x1, phase);
     const y = lerp(y0, y1, phase);
     const circle = i % 3 === 0 && phase > 0.4;
@@ -490,7 +491,7 @@ function drawKeys(ctx, t, assets) {
   });
   ctx.restore();
 
-  /* User layout screenshots: original color and aspect; blue-white is only the frame.
+  /* User layout screenshots: original color and aspect (contain, no crop).
    * Theme tags stay generic. Do not name untested games. */
   const layouts = [
     { img: imgs.layout1, tag: "飞行主题" },
@@ -504,22 +505,32 @@ function drawKeys(ctx, t, assets) {
   const appear = easeOutCubic(smooth((t - KEYS_SLOTS) / 0.45));
   if (appear <= 0.001) return;
   const n = layouts.length;
-  const period = 1.15;
-  const raw = Math.max(0, t - KEYS_SLOTS) / period;
-  const idx = Math.floor(raw) % n;
-  const nxt = (idx + 1) % n;
-  const phase = raw - Math.floor(raw);
-  const xf = smooth((phase - 0.70) / 0.30);
+  const period = 1.80;
+  const fadeT = 0.25;
+  const elapsed = Math.max(0, t - KEYS_SLOTS);
+  const lastStart = (n - 1) * period;
+  let idx, nxt, xf;
+  if (elapsed >= lastStart) {
+    /* Hold the 7th shot — do not loop back, so every layout has a clear stay. */
+    idx = n - 1;
+    nxt = n - 1;
+    xf = 0;
+  } else {
+    idx = Math.min(n - 1, Math.floor(elapsed / period));
+    nxt = Math.min(n - 1, idx + 1);
+    const into = elapsed - idx * period;
+    xf = (idx === nxt) ? 0 : smooth((into - (period - fadeT)) / fadeT);
+  }
   const cur = layouts[idx], nxtL = layouts[nxt];
 
-  const fx = 70, fy = 290, fw = 940, fh = 530;
+  const fx = 70, fy = 300, fw = 940, fh = 620;
   ctx.save();
   ctx.globalAlpha = appear;
   fillRR(ctx, fx, fy, fw, fh, 22, "rgba(255,255,255,0.94)");
   strokeRR(ctx, fx, fy, fw, fh, 22, "rgba(26,124,255,0.30)", 2);
 
   /* hero, contain to preserve aspect; dark mat only in unused letterbox */
-  const innerX = fx + 10, innerY = fy + 44, innerW = fw - 20, innerH = fh - 86;
+  const innerX = fx + 14, innerY = fy + 14, innerW = fw - 28, innerH = 368;
   fillRR(ctx, innerX, innerY, innerW, innerH, 12, "#101820");
   ctx.save();
   rr(ctx, innerX, innerY, innerW, innerH, 12); ctx.clip();
@@ -533,35 +544,49 @@ function drawKeys(ctx, t, assets) {
   }
   ctx.restore();
 
-  /* top filmstrip */
-  const thumbW = 70, thumbH = 32, thumbGap = 6;
-  const stripW = n * thumbW + (n - 1) * thumbGap;
-  const tx0 = fx + fw - 16 - stripW;
-  const thumbY = fy + 8;
+  /* Two-row filmstrip: all 7 layouts stay visible for the whole scene. */
+  const thumbW = 200, thumbH = 84, thumbGapX = 12, thumbGapY = 10;
+  const rowY0 = fy + 14 + innerH + 12;
+  const row1n = 4, row2n = 3;
+  const row1W = row1n * thumbW + (row1n - 1) * thumbGapX;
+  const row2W = row2n * thumbW + (row2n - 1) * thumbGapX;
+  const row1X = fx + (fw - row1W) / 2;
+  const row2X = fx + (fw - row2W) / 2;
   layouts.forEach((L, i) => {
     const on = i === idx || (xf > 0.5 && i === nxt);
-    const x = tx0 + i * (thumbW + thumbGap);
-    fillRR(ctx, x, thumbY, thumbW, thumbH, 5, "#ffffff");
-    strokeRR(ctx, x, thumbY, thumbW, thumbH, 5, on ? "#1a7cff" : "rgba(11,42,92,0.18)", on ? 2 : 1);
+    const row = i < row1n ? 0 : 1;
+    const col = i < row1n ? i : i - row1n;
+    const x = (row === 0 ? row1X : row2X) + col * (thumbW + thumbGapX);
+    const y = rowY0 + row * (thumbH + thumbGapY);
+    fillRR(ctx, x, y, thumbW, thumbH, 8, "#ffffff");
+    strokeRR(ctx, x, y, thumbW, thumbH, 8, on ? "#1a7cff" : "rgba(11,42,92,0.18)", on ? 3 : 1);
     if (L.img) {
       ctx.save();
-      rr(ctx, x + 1, thumbY + 1, thumbW - 2, thumbH - 2, 4); ctx.clip();
-      drawCover(ctx, L.img, x + 1, thumbY + 1, thumbW - 2, thumbH - 2);
+      rr(ctx, x + 2, y + 2, thumbW - 4, thumbH - 4, 6); ctx.clip();
+      drawCover(ctx, L.img, x + 2, y + 2, thumbW - 4, thumbH - 4);
       ctx.restore();
+    }
+    if (on) {
+      fillRR(ctx, x, y + thumbH - 18, thumbW, 18, 6, "rgba(26,124,255,0.92)");
+      ctx.fillStyle = "#ffffff";
+      ctx.font = "600 13px 'Noto Sans CJK SC', sans-serif";
+      ctx.textAlign = "center";
+      ctx.fillText((i + 1) + " / 7  " + L.tag, x + thumbW / 2, y + thumbH - 5);
     }
   });
 
   /* footer: theme tag + required disclaimer */
   const tag = xf > 0.5 ? nxtL.tag : cur.tag;
-  fillRR(ctx, fx + 14, fy + fh - 34, 118, 24, 8, "#1a7cff");
+  const footY = fy + fh - 36;
+  fillRR(ctx, fx + 16, footY, 118, 24, 8, "#1a7cff");
   ctx.fillStyle = "#ffffff";
   ctx.font = "600 15px 'Noto Sans CJK SC', sans-serif";
   ctx.textAlign = "center";
-  ctx.fillText(tag, fx + 73, fy + fh - 16);
+  ctx.fillText(tag, fx + 75, footY + 18);
   ctx.fillStyle = "#0b2a5c";
   ctx.font = "600 16px 'Noto Sans CJK SC', sans-serif";
   ctx.textAlign = "left";
-  ctx.fillText("游戏主题布局示例，尚未实测适配", fx + 144, fy + fh - 16);
+  ctx.fillText("游戏主题布局示例，尚未实测适配", fx + 146, footY + 18);
   ctx.restore();
 }
 
@@ -619,18 +644,22 @@ function wrapText(ctx, text, x, y, maxW, lh) {
 
 function drawDemo(ctx, t, assets) {
   const p = easeOutCubic(smooth((t - DEMO_IN) / 0.7));
+  const drift = 10 * Math.sin((t - DEMO_IN) * 1.6);
+  const pulse = 0.90 + 0.10 * (0.5 + 0.5 * Math.sin(t * 3.2));
   ctx.save();
   ctx.globalAlpha = p;
-  /* film strip */
-  fillRR(ctx, 80, 360, 920, 520, 8, "#14315c");
-  for (let i = 0; i < 9; i++) {
-    fillRR(ctx, 110 + i * 96, 380, 44, 28, 4, "#2a5aa0");
-    fillRR(ctx, 110 + i * 96, 832, 44, 28, 4, "#2a5aa0");
+  fillRR(ctx, 80, 360 + drift * 0.15, 920, 520, 8, "#14315c");
+  const shift = ((t * 48) % 96);
+  for (let i = -1; i < 10; i++) {
+    fillRR(ctx, 110 + i * 96 + shift, 380, 44, 28, 4, "#2a5aa0");
+    fillRR(ctx, 110 + i * 96 + shift, 832, 44, 28, 4, "#2a5aa0");
   }
   ctx.textAlign = "center";
   ctx.fillStyle = "#7ec4ff";
   ctx.font = "700 28px 'Noto Sans CJK SC', sans-serif";
+  ctx.globalAlpha = p * pulse;
   ctx.fillText("NEXT REEL", W / 2, 500);
+  ctx.globalAlpha = p;
   ctx.fillStyle = "#ffffff";
   ctx.font = "800 64px 'Noto Sans CJK SC', sans-serif";
   ctx.fillText("接下来是实用演示", W / 2, 620);
@@ -739,26 +768,32 @@ function drawSubs(ctx, t) {
   }
   if (!cur) return;
   const text = cur.text;
-  /* Reserved caption lane to the right of the lower-left character.
-   * Content in each scene is laid out above y ≈ 1180 so cards never sit under this bar. */
-  const laneLeft = 310;
+  /* Hard caption lane to the right of the lower-left character.
+   * Character occupies roughly x=0..340, y=1020..1440 (including sway).
+   * clipRect guarantees no ink crosses into that reserved box. */
+  const laneLeft = 380;
   const laneRight = W - 28;
   const laneW = laneRight - laneLeft;
-  const padX = 22, padY = 14, lh = 44;
+  const laneTop = H - 210;
+  const laneBot = H - 18;
+  const padX = 18, padY = 12, lh = 38;
   ctx.save();
-  ctx.font = "700 32px 'Noto Sans CJK SC', sans-serif";
+  ctx.beginPath();
+  ctx.rect(laneLeft, laneTop, laneW, laneBot - laneTop);
+  ctx.clip();
+  ctx.font = "700 28px 'Noto Sans CJK SC', sans-serif";
   const lines = wrapCaption(ctx, text, laneW - padX * 2);
-  const tw = Math.max(...lines.map((s) => ctx.measureText(s).width));
+  const shown = lines.slice(0, 2);
+  const tw = Math.max(...shown.map((s) => ctx.measureText(s).width));
   const boxW = Math.min(laneW, tw + padX * 2);
-  const boxH = lines.length * lh + padY * 2;
-  const x = laneLeft + (laneW - boxW) / 2;
-  const y = H - 24 - boxH;
-  fillRR(ctx, x, y, boxW, boxH, 16, "rgba(255,255,255,0.92)");
+  const boxH = shown.length * lh + padY * 2;
+  const x = laneLeft;
+  const y = laneBot - boxH;
+  fillRR(ctx, x, y, boxW, boxH, 16, "rgba(255,255,255,0.94)");
   strokeRR(ctx, x, y, boxW, boxH, 16, "rgba(11,42,92,0.16)", 1.5);
   ctx.fillStyle = cur.pop ? "#0a5ae0" : "#0b2a5c";
-  ctx.textAlign = "center";
+  ctx.textAlign = "left";
   ctx.textBaseline = "top";
-  const cx = x + boxW / 2;
-  lines.forEach((s, i) => ctx.fillText(s, cx, y + padY + i * lh));
+  shown.forEach((line, i) => ctx.fillText(line, x + padX, y + padY + i * lh));
   ctx.restore();
 }
