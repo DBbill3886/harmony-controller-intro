@@ -1,15 +1,16 @@
-/* Film time in seconds. Narration audio starts at INTRO.
- * v1.1: late-half pauses were lengthened by inserting silence at existing
- * phrase gaps in the original WAV (no new TTS). Audio duration 95.34s.
+/* Film time in seconds equals audio.currentTime.
+ * Playback file is film-length: 5.00s leading silence + 95.34s narration
+ * (late-half pauses already inserted in the wav, no new TTS) + 10.66s tail
+ * = DURATION 111.00s. INTRO marks where speech begins, not a second clock.
  */
 const INTRO = 5.0;
-const AUDIO_DUR = 95.34;
+const AUDIO_DUR = 111.0;
 const DURATION = 111.0;
 const W = 1080, H = 1440;
 
 /* Scene / motion anchors after the late-half silence inserts. */
 const KEYS_MORPH = 81.30;
-const KEYS_SLOTS = 87.35;
+const KEYS_SLOTS = 86.20;
 const MARKET_CARDS = 93.80;
 const DEMO_IN = 97.40;
 const IDEA_FROM = 35.60;

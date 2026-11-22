@@ -85,7 +85,7 @@ function renderAt(ctx, t, assets, opts) {
   opts = opts || {};
   const imgs = (assets && assets.imgs) || {};
   ctx.save();
-  ctx.fillStyle = "#07070c";
+  ctx.fillStyle = "#eef5fc";
   ctx.fillRect(0, 0, W, H);
   drawBackdrop(ctx, t);
   /* stacked scenes with crossfade */
@@ -113,51 +113,77 @@ function renderAt(ctx, t, assets, opts) {
   ctx.restore();
 }
 
+const FX = { ready: false };
+function ensureFX() {
+  if (FX.ready) return;
+  const make = (w, h) => { const c = document.createElement("canvas"); c.width = w; c.height = h; return c; };
+  const orb = make(256, 256);
+  const og = orb.getContext("2d");
+  const ogg = og.createRadialGradient(128, 128, 0, 128, 128, 128);
+  ogg.addColorStop(0, "rgba(80,170,255,0.50)");
+  ogg.addColorStop(0.5, "rgba(80,170,255,0.12)");
+  ogg.addColorStop(1, "rgba(80,170,255,0)");
+  og.fillStyle = ogg;
+  og.fillRect(0, 0, 256, 256);
+  FX.orb = orb;
+  const grain = make(256, 256);
+  const gg = grain.getContext("2d");
+  const img = gg.createImageData(256, 256);
+  let s = 1234567;
+  for (let i = 0; i < img.data.length; i += 4) {
+    s = (s * 1103515245 + 12345) & 0x7fffffff;
+    const a = 50 + (s % 90);
+    img.data[i] = img.data[i + 1] = img.data[i + 2] = a;
+    img.data[i + 3] = 30;
+  }
+  gg.putImageData(img, 0, 0);
+  FX.grain = grain;
+  const vig = make(W, H);
+  const vg = vig.getContext("2d");
+  const rg = vg.createRadialGradient(W / 2, H * 0.42, 240, W / 2, H * 0.5, 980);
+  rg.addColorStop(0, "rgba(238,245,252,0)");
+  rg.addColorStop(1, "rgba(150,190,225,0.38)");
+  vg.fillStyle = rg;
+  vg.fillRect(0, 0, W, H);
+  FX.vignette = vig;
+  FX.ready = true;
+}
+
 function drawBackdrop(ctx, t) {
-  const g = ctx.createRadialGradient(W * 0.5, H * 0.38, 40, W * 0.5, H * 0.4, 900);
-  const heat = sceneW("shop", t) * 0.7 + sceneW("birth", t) * 0.4 + sceneW("demo", t) * 0.3;
-  g.addColorStop(0, "rgba(255,90,40," + (0.10 + 0.12 * heat) + ")");
-  g.addColorStop(0.45, "rgba(40,18,60,0.35)");
-  g.addColorStop(1, "rgba(5,5,8,0)");
+  ensureFX();
+  const g = ctx.createRadialGradient(W * 0.5, H * 0.28, 60, W * 0.5, H * 0.5, 1000);
+  g.addColorStop(0, "#ffffff");
+  g.addColorStop(0.42, "#e8f3fb");
+  g.addColorStop(1, "#c9def2");
   ctx.fillStyle = g;
   ctx.fillRect(0, 0, W, H);
-  /* floating orbs */
-  for (let i = 0; i < 6; i++) {
-    const px = W * (0.15 + 0.7 * ((i * 0.37 + t * 0.012 * (1 + i * 0.1)) % 1));
-    const py = H * (0.12 + 0.5 * ((i * 0.19 + t * 0.008) % 1));
-    const rad = 80 + i * 30;
-    const og = ctx.createRadialGradient(px, py, 0, px, py, rad);
-    const col = i % 2 ? "255,193,74" : "255,106,61";
-    og.addColorStop(0, "rgba(" + col + ",0.14)");
-    og.addColorStop(1, "rgba(" + col + ",0)");
-    ctx.fillStyle = og;
-    ctx.beginPath(); ctx.arc(px, py, rad, 0, Math.PI * 2); ctx.fill();
+  if (FX.orb) {
+    for (let i = 0; i < 5; i++) {
+      const px = W * (0.12 + 0.76 * ((i * 0.37 + t * 0.012 * (1 + i * 0.1)) % 1));
+      const py = H * (0.10 + 0.48 * ((i * 0.19 + t * 0.008) % 1));
+      const rad = 90 + i * 28;
+      ctx.globalAlpha = 0.5;
+      ctx.drawImage(FX.orb, px - rad, py - rad, rad * 2, rad * 2);
+    }
+    ctx.globalAlpha = 1;
   }
 }
 
 function drawVignette(ctx, t) {
-  const g = ctx.createRadialGradient(W / 2, H / 2, 280, W / 2, H / 2, 920);
-  g.addColorStop(0, "rgba(0,0,0,0)");
-  g.addColorStop(1, "rgba(0,0,0,0.62)");
-  ctx.fillStyle = g;
-  ctx.fillRect(0, 0, W, H);
+  ensureFX();
+  if (FX.vignette) ctx.drawImage(FX.vignette, 0, 0);
 }
 
 function drawGrain(ctx, t) {
+  ensureFX();
+  if (!FX.grain) return;
   const frame = Math.floor(t * 60);
-  let s = (frame * 1103515245 + 12345) & 0x7fffffff;
-  ctx.globalAlpha = 0.05;
-  for (let i = 0; i < 180; i++) {
-    s = (s * 1103515245 + 12345) & 0x7fffffff;
-    const x = s % W;
-    s = (s * 1103515245 + 12345) & 0x7fffffff;
-    const y = s % H;
-    s = (s * 1103515245 + 12345) & 0x7fffffff;
-    const a = 80 + (s % 140);
-    ctx.fillStyle = "rgb(" + a + "," + a + "," + a + ")";
-    ctx.fillRect(x, y, 2, 2);
-  }
-  ctx.globalAlpha = 1;
+  const ox = (frame * 17) % 64;
+  const oy = (frame * 11) % 64;
+  ctx.save();
+  ctx.globalAlpha = 0.07;
+  ctx.drawImage(FX.grain, -ox, -oy, W + 64, H + 64);
+  ctx.restore();
 }
 
 function drawTitle(ctx, t) {
@@ -166,21 +192,18 @@ function drawTitle(ctx, t) {
   ctx.save();
   ctx.translate(0, -rise);
   ctx.textAlign = "center";
-  ctx.fillStyle = "rgba(255,193,74," + (0.85 * p) + ")";
+  ctx.fillStyle = "rgba(10,42,92," + (0.85 * p) + ")";
   ctx.font = "500 22px 'Noto Sans CJK SC', sans-serif";
   ctx.fillText("第一人称 · 我为什么做这款软件", W / 2, 430);
   const title = "把平板变成方向盘";
   ctx.font = "800 86px 'Noto Sans CJK SC', sans-serif";
   const tg = ctx.createLinearGradient(200, 0, 880, 0);
-  tg.addColorStop(0, "#fff3e0");
-  tg.addColorStop(0.5, "#ffb25a");
-  tg.addColorStop(1, "#ff6a3d");
+  tg.addColorStop(0, "#0b2a5c");
+  tg.addColorStop(0.55, "#155ab8");
+  tg.addColorStop(1, "#1a7cff");
   ctx.fillStyle = tg;
-  ctx.shadowColor = "rgba(255,106,61,0.45)";
-  ctx.shadowBlur = 28 * p;
   ctx.fillText(title, W / 2, 560);
-  ctx.shadowBlur = 0;
-  ctx.fillStyle = "rgba(246,239,230," + (0.8 * p) + ")";
+  ctx.fillStyle = "rgba(11,42,92," + (0.75 * p) + ")";
   ctx.font = "600 36px 'Noto Sans CJK SC', sans-serif";
   ctx.fillText("HarmonyController", W / 2, 640);
   /* orbiting chips */
@@ -191,9 +214,9 @@ function drawTitle(ctx, t) {
     const y = 860 + Math.sin(ang) * 70;
     const a = p * (0.55 + 0.45 * pulse(t + i, 3));
     ctx.globalAlpha = a;
-    fillRR(ctx, x - 70, y - 28, 140, 56, 28, "rgba(255,255,255,0.08)");
-    strokeRR(ctx, x - 70, y - 28, 140, 56, 28, "rgba(255,193,74,0.55)", 1.5);
-    ctx.fillStyle = "#ffe8c8";
+    fillRR(ctx, x - 70, y - 28, 140, 56, 28, "rgba(255,255,255,0.78)");
+    strokeRR(ctx, x - 70, y - 28, 140, 56, 28, "rgba(26,124,255,0.55)", 1.5);
+    ctx.fillStyle = "#0b2a5c";
     ctx.font = "600 24px 'Noto Sans CJK SC', sans-serif";
     ctx.fillText(c, x, y + 8);
     ctx.globalAlpha = 1;
@@ -202,9 +225,9 @@ function drawTitle(ctx, t) {
 }
 
 function virtualBadge(ctx, x, y) {
-  fillRR(ctx, x, y, 210, 36, 8, "rgba(0,0,0,0.72)");
-  strokeRR(ctx, x, y, 210, 36, 8, "rgba(255,193,74,0.8)", 1);
-  ctx.fillStyle = "#ffd27a";
+  fillRR(ctx, x, y, 210, 36, 8, "rgba(11,42,92,0.88)");
+  strokeRR(ctx, x, y, 210, 36, 8, "rgba(26,124,255,0.85)", 1);
+  ctx.fillStyle = "#ffffff";
   ctx.font = "600 16px 'Noto Sans CJK SC', sans-serif";
   ctx.textAlign = "left";
   ctx.fillText("虚拟示意价格", x + 16, y + 24);
@@ -216,7 +239,7 @@ function productCard(ctx, x, y, w, h, img, price, t, slam) {
   ctx.translate(x + w / 2, y + h / 2);
   ctx.scale(lerp(0.82, 1, k), lerp(0.82, 1, k));
   ctx.translate(-(x + w / 2), -(y + h / 2));
-  fillRR(ctx, x, y, w, h, 28, "#14141c");
+  fillRR(ctx, x, y, w, h, 28, "rgba(255,255,255,0.92)");
   strokeRR(ctx, x, y, w, h, 28, "rgba(255,255,255,0.08)", 1.5);
   /* mosaic product */
   ctx.save();
@@ -226,19 +249,17 @@ function productCard(ctx, x, y, w, h, img, price, t, slam) {
   ctx.restore();
   /* name bars (censored) */
   const ny = y + h * 0.52 + 36;
-  fillRR(ctx, x + 28, ny, w * 0.62, 22, 6, "#2a2a36");
-  fillRR(ctx, x + 28, ny + 32, w * 0.4, 16, 5, "#23232e");
+  fillRR(ctx, x + 28, ny, w * 0.62, 22, 6, "#d5e3f3");
+  fillRR(ctx, x + 28, ny + 32, w * 0.4, 16, 5, "#c4d6ec");
   /* price left visible, slams */
   const py = y + h - 92;
   const pScale = 1 + 0.18 * easeOutElastic(slam);
   ctx.save();
   ctx.translate(x + 36, py + 30);
   ctx.scale(pScale, pScale);
-  ctx.fillStyle = "#ff4d2e";
+  ctx.fillStyle = "#0a4ecb";
   ctx.font = "800 52px 'Noto Sans CJK SC', sans-serif";
   ctx.textAlign = "left";
-  ctx.shadowColor = "rgba(255,70,40,0.55)";
-  ctx.shadowBlur = 16 * slam;
   ctx.fillText(price, 0, 0);
   ctx.restore();
   virtualBadge(ctx, x + w - 230, y + h - 54);
@@ -248,18 +269,18 @@ function productCard(ctx, x, y, w, h, img, price, t, slam) {
 function drawShop(ctx, t, assets) {
   const local = t - 9.4;
   ctx.textAlign = "center";
-  ctx.fillStyle = "#f6efe6";
+  ctx.fillStyle = "#0b2a5c";
   ctx.font = "700 42px 'Noto Sans CJK SC', sans-serif";
   ctx.fillText("购物网站 · 虚拟商品页", W / 2, 160);
-  ctx.fillStyle = "rgba(246,239,230,0.55)";
+  ctx.fillStyle = "rgba(11,42,92,0.62)";
   ctx.font = "400 20px 'Noto Sans CJK SC', sans-serif";
   ctx.fillText("示意页面 · 商品与名称已打码 · 价格为虚构", W / 2, 200);
 
   /* fake site chrome */
-  fillRR(ctx, 70, 230, 940, 86, 20, "#101018");
-  fillRR(ctx, 96, 254, 28, 28, 14, "#ff6a3d");
-  fillRR(ctx, 136, 258, 520, 30, 10, "#1c1c26");
-  ctx.fillStyle = "#8d8a86";
+  fillRR(ctx, 70, 230, 940, 86, 20, "#ffffff");
+  fillRR(ctx, 96, 254, 28, 28, 14, "#1a7cff");
+  fillRR(ctx, 136, 258, 520, 30, 10, "#e6f0fa");
+  ctx.fillStyle = "#5a7396";
   ctx.font = "400 18px 'Noto Sans CJK SC', sans-serif";
   ctx.textAlign = "left";
   ctx.fillText("搜   索    方 向 盘", 150, 280);
@@ -273,7 +294,7 @@ function drawShop(ctx, t, assets) {
   if (shock > 0) {
     ctx.save();
     ctx.globalAlpha = (1 - smooth((t - 20.8) / 1.2)) * shock;
-    ctx.fillStyle = "#ff4d2e";
+    ctx.fillStyle = "#0a4ecb";
     ctx.font = "800 96px 'Noto Sans CJK SC', sans-serif";
     ctx.textAlign = "center";
     const dy = -80 * easeOutCubic(sat((t - 19.6) / 1.1));
@@ -296,7 +317,7 @@ function drawXianyu(ctx, t, assets) {
     ctx.font = "800 64px 'Noto Sans CJK SC', sans-serif";
     ctx.fillText("闲鱼", W / 2, 210);
   }
-  ctx.fillStyle = "rgba(246,239,230,0.7)";
+  ctx.fillStyle = "rgba(11,42,92,0.7)";
   ctx.font = "400 20px 'Noto Sans CJK SC', sans-serif";
   ctx.fillText("二手 / DIY · 仍是小几百 · 虚拟示意价格", W / 2, 310);
 
@@ -330,7 +351,7 @@ function drawIdea(ctx, t, assets) {
   }
   ctx.restore();
   ctx.textAlign = "center";
-  ctx.fillStyle = "#ffe8c8";
+  ctx.fillStyle = "#0b2a5c";
   ctx.font = "700 40px 'Noto Sans CJK SC', sans-serif";
   ctx.fillText("我手头就有一台 MatePad mini", W / 2, 920);
 
@@ -346,10 +367,10 @@ function drawIdea(ctx, t, assets) {
     ctx.globalAlpha = a;
     ctx.translate(L.x + 90, 1100);
     ctx.scale(lerp(0.6, 1, a), lerp(0.6, 1, a));
-    fillRR(ctx, -100, -70, 200, 150, 24, "rgba(255,255,255,0.06)");
-    strokeRR(ctx, -100, -70, 200, 150, 24, "rgba(255,255,255,0.16)", 1.5);
+    fillRR(ctx, -100, -70, 200, 150, 24, "#153a72");
+    strokeRR(ctx, -100, -70, 200, 150, 24, "rgba(255,255,255,0.28)", 1.5);
     if (L.img) drawContain(ctx, L.img, -88, -58, 176, 80);
-    ctx.fillStyle = "#f6efe6";
+    ctx.fillStyle = "#ffffff";
     ctx.font = "600 20px 'Noto Sans CJK SC', sans-serif";
     ctx.textAlign = "center";
     ctx.fillText(L.label, 0, 62);
@@ -364,18 +385,18 @@ function drawBirth(ctx, t, assets) {
   ctx.save();
   ctx.translate(W / 2, 260);
   ctx.scale(lerp(0.8, 1, bang), lerp(0.8, 1, bang));
-  ctx.fillStyle = "#ffc14a";
+  ctx.fillStyle = "#1a7cff";
   ctx.font = "700 28px 'Noto Sans CJK SC', sans-serif";
   ctx.fillText("VIBE CODING", 0, 0);
   const hg = ctx.createLinearGradient(-400, 0, 400, 0);
-  hg.addColorStop(0, "#ff6a3d");
-  hg.addColorStop(1, "#ffe0a0");
+  hg.addColorStop(0, "#0b2a5c");
+  hg.addColorStop(1, "#1a7cff");
   ctx.fillStyle = hg;
   ctx.font = "800 64px 'Noto Sans CJK SC', sans-serif";
   ctx.fillText("HarmonyController", 0, 80);
   ctx.restore();
 
-  ctx.fillStyle = "rgba(246,239,230,0.8)";
+  ctx.fillStyle = "rgba(11,42,92,0.78)";
   ctx.font = "400 24px 'Noto Sans CJK SC', sans-serif";
   ctx.fillText("把鸿蒙平板 / 手机，变成 Windows 上的控制台", W / 2, 390);
 
@@ -400,13 +421,13 @@ function drawBirth(ctx, t, assets) {
     ctx.globalAlpha = a;
     ctx.translate(x, y);
     ctx.scale(lerp(0.86, 1, a), lerp(0.86, 1, a));
-    fillRR(ctx, 0, 0, 236, 104, 18, "rgba(255,255,255,0.06)");
-    strokeRR(ctx, 0, 0, 236, 104, 18, "rgba(255,193,74,0.35)", 1.5);
-    ctx.fillStyle = "#ffe8c8";
+    fillRR(ctx, 0, 0, 236, 104, 18, "rgba(255,255,255,0.88)");
+    strokeRR(ctx, 0, 0, 236, 104, 18, "rgba(26,124,255,0.35)", 1.5);
+    ctx.fillStyle = "#0b2a5c";
     ctx.textAlign = "left";
     ctx.font = "700 26px 'Noto Sans CJK SC', sans-serif";
     ctx.fillText(m.t, 16, 44);
-    ctx.fillStyle = "rgba(246,239,230,0.65)";
+    ctx.fillStyle = "rgba(11,42,92,0.62)";
     ctx.font = "400 16px 'Noto Sans CJK SC', sans-serif";
     ctx.fillText(m.s, 16, 78);
     ctx.restore();
@@ -416,22 +437,25 @@ function drawBirth(ctx, t, assets) {
 function drawKeys(ctx, t, assets) {
   const imgs = assets.imgs || {};
   ctx.textAlign = "center";
-  ctx.fillStyle = "#ffe8c8";
+  ctx.fillStyle = "#0b2a5c";
   ctx.font = "800 48px 'Noto Sans CJK SC', sans-serif";
   ctx.fillText("按键，高自由度自定义", W / 2, 170);
-  ctx.fillStyle = "rgba(246,239,230,0.65)";
+  ctx.fillStyle = "rgba(11,42,92,0.65)";
   ctx.font = "400 22px 'Noto Sans CJK SC', sans-serif";
   ctx.fillText("自由拖动 · 缩放 · 横竖屏独立记忆 · 外观与绑定都可改", W / 2, 214);
-  ctx.fillText("下方为界面示意，不是软件截图  ·  示例图槽可替换", W / 2, 250);
+  ctx.fillText("游戏主题布局示例，尚未实测适配", W / 2, 250);
 
   /* stylized layout morphing on a tablet silhouette */
+  const carouselIn = easeOutCubic(smooth((t - KEYS_SLOTS) / 0.45));
+  ctx.save();
+  ctx.globalAlpha = 1 - carouselIn;
   const cx = W / 2, cy = 560;
-  fillRR(ctx, 90, 270, 900, 490, 48, "#0e0e16");
-  strokeRR(ctx, 90, 270, 900, 490, 48, "rgba(255,255,255,0.14)", 3);
+  fillRR(ctx, 90, 270, 900, 490, 48, "rgba(255,255,255,0.86)");
+  strokeRR(ctx, 90, 270, 900, 490, 48, "rgba(26,124,255,0.28)", 3);
   /* evolving keys */
   const keys = [];
-  const n = 10;
-  for (let i = 0; i < n; i++) {
+  const keyN = 10;
+  for (let i = 0; i < keyN; i++) {
     const seed = i * 1.7;
     const phase = smooth((t - KEYS_MORPH - i * 0.08) / 0.5);
     const x0 = 200 + (i % 5) * 150;
@@ -448,57 +472,105 @@ function drawKeys(ctx, t, assets) {
   keys.forEach((k) => {
     if (k.phase <= 0) return;
     ctx.save();
-    ctx.globalAlpha = k.phase;
+    ctx.globalAlpha = k.phase * (1 - carouselIn);
     ctx.translate(k.x, k.y);
     ctx.scale(easeOutBack(k.phase), easeOutBack(k.phase));
     if (k.circle) {
       ctx.beginPath(); ctx.arc(0, 0, k.w / 2, 0, Math.PI * 2);
-      ctx.fillStyle = "rgba(255,106,61,0.9)"; ctx.fill();
+      ctx.fillStyle = "rgba(26,124,255,0.92)"; ctx.fill();
     } else {
-      fillRR(ctx, -k.w / 2, -k.h / 2, k.w, k.h, 22, "rgba(255,193,74,0.16)");
-      strokeRR(ctx, -k.w / 2, -k.h / 2, k.w, k.h, 22, "rgba(255,193,74,0.7)", 2);
+      fillRR(ctx, -k.w / 2, -k.h / 2, k.w, k.h, 22, "rgba(26,124,255,0.10)");
+      strokeRR(ctx, -k.w / 2, -k.h / 2, k.w, k.h, 22, "rgba(26,124,255,0.75)", 2);
     }
-    ctx.fillStyle = "#fff6ea";
+    ctx.fillStyle = k.circle ? "#ffffff" : "#0b2a5c";
     ctx.font = "700 22px 'Noto Sans CJK SC', sans-serif";
     ctx.textAlign = "center";
     ctx.fillText(k.label, 0, 8);
     ctx.restore();
   });
+  ctx.restore();
 
-  /* three replaceable slots */
-  const slots = [
-    { img: imgs.slotFlight, t: "飞行示例图槽" },
-    { img: imgs.slotDriving, t: "驾驶示例图槽" },
-    { img: imgs.slotFighting, t: "格斗示例图槽" }
+  /* User layout screenshots: original color and aspect; blue-white is only the frame.
+   * Theme tags stay generic. Do not name untested games. */
+  const layouts = [
+    { img: imgs.layout1, tag: "飞行主题" },
+    { img: imgs.layout2, tag: "驾驶主题" },
+    { img: imgs.layout3, tag: "格斗主题" },
+    { img: imgs.layout4, tag: "驾驶主题" },
+    { img: imgs.layout5, tag: "格斗主题" },
+    { img: imgs.layout6, tag: "飞行主题" },
+    { img: imgs.layout7, tag: "飞行主题" }
   ];
-  slots.forEach((s, i) => {
-    const a = easeOutCubic(smooth((t - KEYS_SLOTS - i * 0.12) / 0.4));
-    const x = 70 + i * 340, y = 775;
-    ctx.save();
-    ctx.globalAlpha = a;
-    fillRR(ctx, x, y, 320, 188, 20, "#12121a");
-    strokeRR(ctx, x, y, 320, 188, 20, "rgba(255,255,255,0.16)", 2);
-    if (s.img) {
-      rr(ctx, x + 10, y + 8, 300, 138, 14); ctx.clip();
-      drawCover(ctx, s.img, x + 10, y + 8, 300, 138);
+  const appear = easeOutCubic(smooth((t - KEYS_SLOTS) / 0.45));
+  if (appear <= 0.001) return;
+  const n = layouts.length;
+  const period = 1.15;
+  const raw = Math.max(0, t - KEYS_SLOTS) / period;
+  const idx = Math.floor(raw) % n;
+  const nxt = (idx + 1) % n;
+  const phase = raw - Math.floor(raw);
+  const xf = smooth((phase - 0.70) / 0.30);
+  const cur = layouts[idx], nxtL = layouts[nxt];
+
+  const fx = 70, fy = 290, fw = 940, fh = 530;
+  ctx.save();
+  ctx.globalAlpha = appear;
+  fillRR(ctx, fx, fy, fw, fh, 22, "rgba(255,255,255,0.94)");
+  strokeRR(ctx, fx, fy, fw, fh, 22, "rgba(26,124,255,0.30)", 2);
+
+  /* hero, contain to preserve aspect; dark mat only in unused letterbox */
+  const innerX = fx + 10, innerY = fy + 44, innerW = fw - 20, innerH = fh - 86;
+  fillRR(ctx, innerX, innerY, innerW, innerH, 12, "#101820");
+  ctx.save();
+  rr(ctx, innerX, innerY, innerW, innerH, 12); ctx.clip();
+  if (cur.img) {
+    ctx.globalAlpha = appear * (1 - xf);
+    drawContain(ctx, cur.img, innerX, innerY, innerW, innerH);
+  }
+  if (nxtL.img && xf > 0) {
+    ctx.globalAlpha = appear * xf;
+    drawContain(ctx, nxtL.img, innerX, innerY, innerW, innerH);
+  }
+  ctx.restore();
+
+  /* top filmstrip */
+  const thumbW = 70, thumbH = 32, thumbGap = 6;
+  const stripW = n * thumbW + (n - 1) * thumbGap;
+  const tx0 = fx + fw - 16 - stripW;
+  const thumbY = fy + 8;
+  layouts.forEach((L, i) => {
+    const on = i === idx || (xf > 0.5 && i === nxt);
+    const x = tx0 + i * (thumbW + thumbGap);
+    fillRR(ctx, x, thumbY, thumbW, thumbH, 5, "#ffffff");
+    strokeRR(ctx, x, thumbY, thumbW, thumbH, 5, on ? "#1a7cff" : "rgba(11,42,92,0.18)", on ? 2 : 1);
+    if (L.img) {
+      ctx.save();
+      rr(ctx, x + 1, thumbY + 1, thumbW - 2, thumbH - 2, 4); ctx.clip();
+      drawCover(ctx, L.img, x + 1, thumbY + 1, thumbW - 2, thumbH - 2);
+      ctx.restore();
     }
-    ctx.restore();
-    ctx.save();
-    ctx.globalAlpha = a;
-    ctx.fillStyle = "#ffd9a8";
-    ctx.font = "600 18px 'Noto Sans CJK SC', sans-serif";
-    ctx.textAlign = "center";
-    ctx.fillText(s.t, x + 160, y + 170);
-    ctx.restore();
   });
+
+  /* footer: theme tag + required disclaimer */
+  const tag = xf > 0.5 ? nxtL.tag : cur.tag;
+  fillRR(ctx, fx + 14, fy + fh - 34, 118, 24, 8, "#1a7cff");
+  ctx.fillStyle = "#ffffff";
+  ctx.font = "600 15px 'Noto Sans CJK SC', sans-serif";
+  ctx.textAlign = "center";
+  ctx.fillText(tag, fx + 73, fy + fh - 16);
+  ctx.fillStyle = "#0b2a5c";
+  ctx.font = "600 16px 'Noto Sans CJK SC', sans-serif";
+  ctx.textAlign = "left";
+  ctx.fillText("游戏主题布局示例，尚未实测适配", fx + 144, fy + fh - 16);
+  ctx.restore();
 }
 
 function drawMarket(ctx, t, assets) {
   ctx.textAlign = "center";
-  ctx.fillStyle = "#ffe8c8";
+  ctx.fillStyle = "#0b2a5c";
   ctx.font = "800 48px 'Noto Sans CJK SC', sans-serif";
   ctx.fillText("预设市场", W / 2, 170);
-  ctx.fillStyle = "rgba(246,239,230,0.7)";
+  ctx.fillStyle = "rgba(11,42,92,0.7)";
   ctx.font = "400 24px 'Noto Sans CJK SC', sans-serif";
   ctx.fillText("按游戏下载 · 发布自己的方案 · 导出或分享文件", W / 2, 216);
 
@@ -517,17 +589,17 @@ function drawMarket(ctx, t, assets) {
     ctx.translate(x + 230, y + 160);
     ctx.scale(lerp(0.8, 1, a), lerp(0.8, 1, a));
     ctx.translate(-(x + 230), -(y + 160));
-    fillRR(ctx, x, y, 460, 290, 28, "rgba(255,255,255,0.06)");
-    strokeRR(ctx, x, y, 460, 290, 28, "rgba(255,193,74,0.4)", 2);
-    fillRR(ctx, x + 28, y + 28, 90, 36, 10, "#ff6a3d");
+    fillRR(ctx, x, y, 460, 290, 28, "rgba(255,255,255,0.90)");
+    strokeRR(ctx, x, y, 460, 290, 28, "rgba(26,124,255,0.35)", 2);
+    fillRR(ctx, x + 28, y + 28, 90, 36, 10, "#1a7cff");
     ctx.fillStyle = "#fff";
     ctx.font = "700 18px 'Noto Sans CJK SC', sans-serif";
     ctx.textAlign = "left";
     ctx.fillText(c.tag, x + 44, y + 52);
-    ctx.fillStyle = "#fff3e0";
+    ctx.fillStyle = "#0b2a5c";
     ctx.font = "800 40px 'Noto Sans CJK SC', sans-serif";
     ctx.fillText(c.title, x + 28, y + 130);
-    ctx.fillStyle = "rgba(246,239,230,0.75)";
+    ctx.fillStyle = "rgba(11,42,92,0.75)";
     ctx.font = "400 24px 'Noto Sans CJK SC', sans-serif";
     wrapText(ctx, c.desc, x + 28, y + 190, 400, 34);
     ctx.restore();
@@ -550,19 +622,19 @@ function drawDemo(ctx, t, assets) {
   ctx.save();
   ctx.globalAlpha = p;
   /* film strip */
-  fillRR(ctx, 80, 360, 920, 520, 8, "#140e0c");
+  fillRR(ctx, 80, 360, 920, 520, 8, "#14315c");
   for (let i = 0; i < 9; i++) {
-    fillRR(ctx, 110 + i * 96, 380, 44, 28, 4, "#2a1c14");
-    fillRR(ctx, 110 + i * 96, 832, 44, 28, 4, "#2a1c14");
+    fillRR(ctx, 110 + i * 96, 380, 44, 28, 4, "#2a5aa0");
+    fillRR(ctx, 110 + i * 96, 832, 44, 28, 4, "#2a5aa0");
   }
   ctx.textAlign = "center";
-  ctx.fillStyle = "#ffc14a";
+  ctx.fillStyle = "#7ec4ff";
   ctx.font = "700 28px 'Noto Sans CJK SC', sans-serif";
   ctx.fillText("NEXT REEL", W / 2, 500);
-  ctx.fillStyle = "#fff6ea";
+  ctx.fillStyle = "#ffffff";
   ctx.font = "800 64px 'Noto Sans CJK SC', sans-serif";
   ctx.fillText("接下来是实用演示", W / 2, 620);
-  ctx.fillStyle = "rgba(246,239,230,0.7)";
+  ctx.fillStyle = "rgba(255,255,255,0.78)";
   ctx.font = "400 26px 'Noto Sans CJK SC', sans-serif";
   ctx.fillText("这一段由我自己录好，接在后面", W / 2, 700);
   ctx.restore();
@@ -624,8 +696,8 @@ function drawPops(ctx, t) {
   ctx.translate(x, y);
   ctx.rotate(-0.12);
   ctx.scale(k * 1.05, k * 1.05);
-  ctx.fillStyle = p.kind === "oye" ? "#ff6a3d" : "#ffc14a";
-  ctx.strokeStyle = "#1a0e08";
+  ctx.fillStyle = p.kind === "oye" ? "#0a5ae0" : "#1a7cff";
+  ctx.strokeStyle = "#07224a";
   ctx.lineWidth = 16;
   ctx.font = "900 92px 'Noto Sans CJK SC', sans-serif";
   ctx.textAlign = "left";
@@ -681,8 +753,9 @@ function drawSubs(ctx, t) {
   const boxH = lines.length * lh + padY * 2;
   const x = laneLeft + (laneW - boxW) / 2;
   const y = H - 24 - boxH;
-  fillRR(ctx, x, y, boxW, boxH, 16, "rgba(6,6,10,0.78)");
-  ctx.fillStyle = cur.pop ? "#ffc14a" : "#fff6ea";
+  fillRR(ctx, x, y, boxW, boxH, 16, "rgba(255,255,255,0.92)");
+  strokeRR(ctx, x, y, boxW, boxH, 16, "rgba(11,42,92,0.16)", 1.5);
+  ctx.fillStyle = cur.pop ? "#0a5ae0" : "#0b2a5c";
   ctx.textAlign = "center";
   ctx.textBaseline = "top";
   const cx = x + boxW / 2;

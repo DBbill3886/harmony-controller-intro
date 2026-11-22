@@ -1,6 +1,6 @@
 (function () {
   const canvas = document.getElementById("view");
-  const ctx = canvas.getContext("2d", { alpha: false });
+  const ctx = canvas.getContext("2d", { alpha: false, desynchronized: true });
   const audio = document.getElementById("voice");
   const seek = document.getElementById("seek");
   const playBtn = document.getElementById("play");
@@ -28,16 +28,20 @@
     gemini: "assets/logos/gemini-lockup.png",
     chatgpt: "assets/logos/openai-blossom-white.png",
     grok: "assets/logos/grok-white.png",
-    slotFlight: "assets/slots/slot-flight.png",
-    slotDriving: "assets/slots/slot-driving.png",
-    slotFighting: "assets/slots/slot-fighting.png"
+    layout1: "assets/slots/layout-01.png",
+    layout2: "assets/slots/layout-02.png",
+    layout3: "assets/slots/layout-03.png",
+    layout4: "assets/slots/layout-04.png",
+    layout5: "assets/slots/layout-05.png",
+    layout6: "assets/slots/layout-06.png",
+    layout7: "assets/slots/layout-07.png"
   };
 
   let showSubs = true;
   let playing = false;
-  let lastMediaT = 0;
-  let kickoff = false;
   let raf = 0;
+  let lastDom = 0;
+  let lastShown = "";
 
   function fmt(t) {
     t = Math.max(0, t);
@@ -46,96 +50,97 @@
     return String(m).padStart(2, "0") + ":" + String(s).padStart(2, "0");
   }
 
+  /* Sole clock: audio.currentTime. Playback file is film-length
+   * (5.00s leading silence + narration + trailing silence = DURATION). */
   function filmTime() {
-    if (!kickoff) return Number(seek.value) || 0;
     const a = audio.currentTime || 0;
-    return Math.min(DURATION, a + INTRO);
+    if (a < 0) return 0;
+    if (a > DURATION) return DURATION;
+    return a;
   }
 
   function seekTo(t) {
     t = Math.max(0, Math.min(DURATION, t));
+    try { audio.currentTime = t; } catch (e) {}
     seek.value = t.toFixed(2);
-    const a = Math.max(0, t - INTRO);
-    if (t < INTRO) {
-      if (!audio.paused) audio.pause();
-      audio.currentTime = 0;
-      if (playing) {
-        /* hold until intro ends via ticker */
-      }
-    } else {
-      audio.currentTime = Math.min(AUDIO_DUR, a);
-      if (playing && audio.paused && a < AUDIO_DUR - 0.05) {
-        audio.play().catch(() => {});
-      }
+    paint(t);
+    if (playing && audio.paused && t < DURATION - 0.05) {
+      audio.play().catch(function () {});
     }
-    draw();
   }
 
-  function draw(ts) {
-    const t = filmTime();
-    if (!seek.matches(":active")) seek.value = t.toFixed(2);
-    timeEl.textContent = fmt(t) + " / " + fmt(DURATION);
+  function paint(t) {
     if (assets.ready) {
       renderAt(ctx, t, assets, { showSubs: showSubs, playing: playing });
     } else {
-      ctx.fillStyle = "#07070c";
+      ctx.fillStyle = "#eef5fc";
       ctx.fillRect(0, 0, W, H);
-      ctx.fillStyle = "#fff";
+      ctx.fillStyle = "#0b2a5c";
       ctx.font = "32px sans-serif";
       ctx.textAlign = "center";
       ctx.fillText("正在载入画面…", W / 2, H / 2);
     }
-    if (playing) {
-      if (t >= INTRO - 0.02 && audio.paused && t < INTRO + AUDIO_DUR - 0.05) {
-        audio.play().catch(() => {});
-      }
-      if (t >= DURATION - 0.02) {
-        playing = false;
-        playBtn.textContent = "重播";
-        audio.pause();
-      } else {
-        raf = requestAnimationFrame(draw);
+    const now = (typeof performance !== "undefined") ? performance.now() : 0;
+    if (now - lastDom > 80) {
+      lastDom = now;
+      if (!seek.matches(":active")) seek.value = t.toFixed(2);
+      const label = fmt(t) + " / " + fmt(DURATION);
+      if (label !== lastShown) {
+        lastShown = label;
+        timeEl.textContent = label;
       }
     }
   }
 
-  async function loadAssets() {
-    const imgs = {};
-    await Promise.all(Object.entries(paths).map(([k, src]) => new Promise((res, rej) => {
-      const im = new Image();
-      im.onload = () => { imgs[k] = im; res(); };
-      im.onerror = () => { console.warn("missing", src); res(); };
-      im.src = src;
-    })));
-    assets.imgs = imgs;
-    assets.ready = true;
-    /* Q-version 待兼诗歌剧 already keyed to transparent PNG; do not re-key (would eat dark outlines). */
-    assets.mascot = {};
-    ["mascotIdle", "mascotShock", "mascotIdea", "mascotCelebrate", "mascotBlink"].forEach((k) => {
-      if (imgs[k]) assets.mascot[k] = imgs[k];
-    });
-    assets.mosaic = {};
-    ["wheel", "stick", "diy"].forEach((k) => {
-      if (imgs[k]) assets.mosaic[k] = mosaicImage(imgs[k], 18);
-    });
-    draw();
+  function tick() {
+    if (!playing) return;
+    const t = filmTime();
+    paint(t);
+    if (t >= DURATION - 1 / 60 || audio.ended) {
+      playing = false;
+      playBtn.textContent = "重播";
+      if (!audio.paused) audio.pause();
+      paint(DURATION);
+      seek.value = DURATION.toFixed(2);
+      timeEl.textContent = fmt(DURATION) + " / " + fmt(DURATION);
+      raf = 0;
+      return;
+    }
+    raf = requestAnimationFrame(tick);
   }
 
-  function keyBlack(img) {
-    const c = document.createElement("canvas");
-    c.width = img.naturalWidth; c.height = img.naturalHeight;
-    const g = c.getContext("2d");
-    g.drawImage(img, 0, 0);
-    const data = g.getImageData(0, 0, c.width, c.height);
-    const d = data.data;
-    for (let i = 0; i < d.length; i += 4) {
-      const r = d[i], gv = d[i + 1], b = d[i + 2];
-      const m = Math.max(r, gv, b);
-      if (m < 18) d[i + 3] = 0;
-      else if (m < 36) d[i + 3] = Math.round(d[i + 3] * (m - 18) / 18);
+  function play() {
+    hint.classList.add("hidden");
+    if (filmTime() >= DURATION - 0.05) seekTo(0);
+    playing = true;
+    playBtn.textContent = "暂停";
+    audio.play().catch(function () {});
+    if (raf) cancelAnimationFrame(raf);
+    raf = requestAnimationFrame(tick);
+  }
+
+  function pause() {
+    playing = false;
+    audio.pause();
+    playBtn.textContent = "继续";
+    if (raf) { cancelAnimationFrame(raf); raf = 0; }
+    paint(filmTime());
+  }
+
+  async function loadImage(src) {
+    const im = new Image();
+    im.decoding = "async";
+    im.src = src;
+    await new Promise(function (res) {
+      im.onload = res;
+      im.onerror = res;
+    });
+    if (!im.naturalWidth) return null;
+    try { if (im.decode) await im.decode(); } catch (e) {}
+    if (typeof createImageBitmap === "function") {
+      try { return await createImageBitmap(im); } catch (e) { return im; }
     }
-    g.putImageData(data, 0, 0);
-    return c;
+    return im;
   }
 
   function mosaicImage(img, tiles) {
@@ -143,10 +148,9 @@
     const w = 640, h = 640;
     c.width = w; c.height = h;
     const g = c.getContext("2d");
-    const iw = img.naturalWidth, ih = img.naturalHeight;
+    const iw = img.width || img.naturalWidth, ih = img.height || img.naturalHeight;
     const s = Math.max(w / iw, h / ih);
     g.drawImage(img, (w - iw * s) / 2, (h - ih * s) / 2, iw * s, ih * s);
-    const tw = Math.ceil(w / tiles), th = Math.ceil(h / tiles);
     const tmp = document.createElement("canvas");
     tmp.width = tiles; tmp.height = tiles;
     const tg = tmp.getContext("2d");
@@ -154,40 +158,46 @@
     tg.drawImage(c, 0, 0, tiles, tiles);
     g.imageSmoothingEnabled = false;
     g.drawImage(tmp, 0, 0, w, h);
-    /* extra barcode bars over the center-ish name area later in layout */
     return c;
   }
 
-  playBtn.addEventListener("click", () => {
-    kickoff = true;
-    hint.classList.add("hidden");
-    if (!playing) {
-      if (filmTime() >= DURATION - 0.05) seekTo(0);
-      playing = true;
-      playBtn.textContent = "暂停";
-      if (filmTime() >= INTRO) audio.play().catch(() => {});
-      cancelAnimationFrame(raf);
-      raf = requestAnimationFrame(draw);
-    } else {
-      playing = false;
-      audio.pause();
-      playBtn.textContent = "继续";
-    }
+  async function loadAssets() {
+    const imgs = {};
+    await Promise.all(Object.keys(paths).map(async function (k) {
+      const im = await loadImage(paths[k]);
+      if (im) imgs[k] = im;
+    }));
+    assets.imgs = imgs;
+    assets.mascot = {};
+    ["mascotIdle", "mascotShock", "mascotIdea", "mascotCelebrate", "mascotBlink"].forEach(function (k) {
+      if (imgs[k]) assets.mascot[k] = imgs[k];
+    });
+    assets.mosaic = {};
+    ["wheel", "stick", "diy"].forEach(function (k) {
+      if (imgs[k]) assets.mosaic[k] = mosaicImage(imgs[k], 18);
+    });
+    if (typeof ensureFX === "function") ensureFX();
+    assets.ready = true;
+    paint(filmTime());
+  }
+
+  playBtn.addEventListener("click", function () {
+    if (!playing) play();
+    else pause();
   });
-  canvas.addEventListener("click", () => playBtn.click());
-  seek.addEventListener("input", () => {
-    kickoff = true;
+  canvas.addEventListener("click", function () { playBtn.click(); });
+  seek.addEventListener("input", function () {
     hint.classList.add("hidden");
     seekTo(Number(seek.value));
   });
-  vol.addEventListener("input", () => { audio.volume = Number(vol.value); });
-  subsBtn.addEventListener("click", () => {
+  vol.addEventListener("input", function () { audio.volume = Number(vol.value); });
+  subsBtn.addEventListener("click", function () {
     showSubs = !showSubs;
     subsBtn.classList.toggle("active", showSubs);
     subsBtn.textContent = showSubs ? "字幕开" : "字幕关";
-    draw();
+    paint(filmTime());
   });
-  lrcBtn.addEventListener("click", () => {
+  lrcBtn.addEventListener("click", function () {
     const body = exportLrc();
     const blob = new Blob([body], { type: "text/plain;charset=utf-8" });
     const a = document.createElement("a");
@@ -196,15 +206,25 @@
     a.click();
     URL.revokeObjectURL(a.href);
   });
-  fsBtn.addEventListener("click", () => {
+  fsBtn.addEventListener("click", function () {
     const el = document.getElementById("stage-wrap");
-    if (!document.fullscreenElement) el.requestFullscreen().catch(() => {});
+    if (!document.fullscreenElement) el.requestFullscreen().catch(function () {});
     else document.exitFullscreen();
   });
-  audio.addEventListener("ended", () => { /* demo hold continues until DURATION */ });
+  audio.addEventListener("ended", function () {
+    playing = false;
+    playBtn.textContent = "重播";
+    if (raf) { cancelAnimationFrame(raf); raf = 0; }
+    paint(DURATION);
+    seek.value = DURATION.toFixed(2);
+    timeEl.textContent = fmt(DURATION) + " / " + fmt(DURATION);
+  });
   seek.max = DURATION;
+  seek.value = "0";
   audio.volume = 1;
+  audio.preload = "auto";
+  try { audio.load(); } catch (e) {}
   loadAssets();
-  window.renderAtPublic = (t) => renderAt(ctx, t, assets, { showSubs: true, playing: false });
-  window.__HC = { seekTo, filmTime, DURATION, INTRO, assets, draw };
+  window.renderAtPublic = function (t) { renderAt(ctx, t, assets, { showSubs: true, playing: false }); };
+  window.__HC = { seekTo: seekTo, filmTime: filmTime, DURATION: DURATION, INTRO: INTRO, assets: assets, draw: function () { paint(filmTime()); } };
 })();
